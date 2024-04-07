@@ -1,0 +1,65 @@
+---
+# tasks file for ec2
+- name: Create security group
+  amazon.aws.ec2_security_group:
+    name: "{{ security_group_name }}"
+    description: "{{ security_group_description }}"
+    region: "{{ region }}"
+    aws_access_key: "{{ aws_access_key }}"
+    aws_secret_key: "{{ aws_secret_key }}"
+    rules:
+      - proto: tcp
+        ports:
+          - 22
+        cidr_ip: 0.0.0.0/0
+        rule_desc: Allow on ssh port
+      - proto: tcp
+        ports:
+          - "{{ node_exporter_port }}"
+        cidr_ip: 0.0.0.0/0
+        rule_desc: Allow on {{ node_exporter_port }} port
+      - proto: tcp
+        ports:
+          - "{{ prometheus_port }}"
+        cidr_ip: 0.0.0.0/0
+        rule_desc: Allow on {{ prometheus_port }} port
+      - proto: tcp
+        ports:
+          - "{{ grafana_port }}"
+        cidr_ip: 0.0.0.0/0
+        rule_desc: Allow on {{ grafana_port }} port
+
+- name: Create EC2 instance
+  amazon.aws.ec2_instance:
+    name: "{{ ec2_instance_name }}"
+    key_name: "{{ key_name }}"
+    instance_type: "{{ instance_type }}"
+    security_group: "{{ security_group_name }}"
+    aws_access_key: "{{ aws_access_key }}"
+    aws_secret_key: "{{ aws_secret_key }}"
+    region: "{{ region }}"
+    network:
+      assign_public_ip: true
+    image_id: "{{ image_id }}"
+    state: started
+    wait: true
+
+- name: Get EC2 instances facts
+  ec2_instance_info:
+    aws_access_key: "{{ aws_access_key }}"
+    aws_secret_key: "{{ aws_secret_key }}"
+    region: "{{ region }}"
+  register: facts
+
+- name: Move EC2 instance public IP to custom file
+  copy:
+    content: "{{ item.public_ip_address }}"
+    dest: files/ec2_public_ip.txt
+  loop: "{{ facts.instances }}"
+  when: (item.tags.Name == "{{ ec2_instance_name }}") and (item.state.name == "running")
+
+- name: Move instance public IP to inventory.ini
+  shell: |
+    echo '{{ item.public_ip_address }} ansible_user={{ ansible_user }}' >> inventory.ini
+  loop: "{{ facts.instances }}"
+  when: (item.tags.Name == "{{ ec2_instance_name }}") and (item.state.name == "running")

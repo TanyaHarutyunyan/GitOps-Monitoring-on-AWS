@@ -1,0 +1,13 @@
+---
+# vars file for ec2
+security_group_name: monitoring
+security_group_description: Security group for Monitoring
+node_exporter_port: 9100
+prometheus_port: 9090
+grafana_port: 3000
+ec2_instance_name: monitoring
+key_name: devops
+instance_type: t3.micro
+region: eu-north-1
+image_id: ami-0914547665e6a707c
+ansible_user: ubuntu
