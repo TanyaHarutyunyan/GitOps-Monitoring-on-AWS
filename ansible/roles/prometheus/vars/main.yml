@@ -1,0 +1,7 @@
+---
+# vars file for prometheus
+container_name: prometheus
+container_port: 9090
+restart_policy: always
+node_exporter_port: 9100
+network: monitoring

@@ -1,0 +1,27 @@
+---
+# tasks file for prometheus
+- name: Create configs directory
+  file:
+    path: /configs
+    state: directory
+
+- name: Add Prometheus configuration template
+  template:
+    src: prometheus.yml.j2
+    dest: /configs/prometheus.yml
+  vars:
+    monitoring_ip: "{{ lookup('file', 'files/ec2_public_ip.txt') }}"
+
+- name: Create Prometheus container
+  docker_container:
+    name: "{{ container_name }}"
+    image: "{{ prometheus_image_name }}:{{ image_tag }}"
+    recreate: yes
+    networks:
+      - name: "{{ network }}"
+    ports:
+      - "{{ container_port }}:9090"
+    volumes:
+      - /configs/prometheus.yml:/etc/prometheus/prometheus.yml
+    restart: yes
+    restart_policy: "{{ restart_policy }}"
