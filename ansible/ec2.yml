@@ -1,0 +1,6 @@
+- name: EC2
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  roles:
+    - ec2

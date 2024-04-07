@@ -1,0 +1,9 @@
+- name: Monitoring
+  become: true
+  hosts: Monitoring
+  roles:
+    - docker
+    - network
+    - node-exporter
+    - prometheus
+    - grafana
