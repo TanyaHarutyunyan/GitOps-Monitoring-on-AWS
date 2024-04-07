@@ -1,0 +1,87 @@
+name: Monitoring CI/CD
+env:
+  NODE_EXPORTER_IMAGE_NAME: "tanyaharutyunyan/node-exporter"
+  NODE_EXPORTER_VERSION: 1.5.0
+  PROMETHEUS_IMAGE_NAME: "tanyaharutyunyan/prometheus"
+  PROMETHEUS_VERSION: 2.37.6
+  GRAFANA_IMAGE_NAME: "tanyaharutyunyan/grafana"
+  IMAGE_TAG: ${{ github.run_number }}
+  FORMAT: amd64
+  GF_SECURITY_ADMIN_USER: username
+  GF_SECURITY_ADMIN_PASSWORD: password
+  NETWORK: monitoring
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+  workflow_dispatch:
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Build Monitoring Docker images
+        run: |
+          docker build --tag ${{ env.NODE_EXPORTER_IMAGE_NAME }}:${{ env.IMAGE_TAG }} --file images/node-exporter/Dockerfile --build-arg="FORMAT=${{ env.FORMAT }}" --build-arg="VERSION=${{ env.NODE_EXPORTER_VERSION }}" .
+          docker build --tag ${{ env.PROMETHEUS_IMAGE_NAME }}:${{ env.IMAGE_TAG }} --file images/prometheus/Dockerfile --build-arg="FORMAT=${{ env.FORMAT }}" --build-arg="VERSION=${{ env.PROMETHEUS_VERSION }}" .
+          docker build --tag ${{ env.GRAFANA_IMAGE_NAME }}:${{ env.IMAGE_TAG }} --file images/grafana/Dockerfile --build-arg="FORMAT=${{ env.FORMAT }}" .
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Push Monitoring Docker images
+        run: |
+          docker push ${{ env.NODE_EXPORTER_IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          docker push ${{ env.PROMETHEUS_IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          docker push ${{ env.GRAFANA_IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+
+  deploy:
+
+    runs-on: ubuntu-latest
+
+    needs: [ build ]
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Run EC2
+        run: |
+          pip install boto boto3 ansible
+          ansible-galaxy collection install amazon.aws
+          ansible-playbook -e aws_access_key=${{ secrets.AWS_ACCESS_KEY }} -e aws_secret_key=${{ secrets.AWS_SECRET_KEY }} ansible/ec2.yml
+
+      - name: Read Public IP
+        id: public_ip
+        run: echo "::set-output name=PUBLIC_IP::$(cat ansible/files/ec2_public_ip.txt)"
+
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add keyscan
+        run: |
+          ssh-keyscan ${{ steps.public_ip.outputs.public_ip }} >> ~/.ssh/known_hosts
+
+      - name: Run Monitoring
+        run: |
+          ansible-playbook \
+            -i ansible/inventory.ini \
+            -e node_exporter_image_name=${{ env.NODE_EXPORTER_IMAGE_NAME }} \
+            -e prometheus_image_name=${{ env.PROMETHEUS_IMAGE_NAME }} \
+            -e image_tag=${{ env.IMAGE_TAG }} \
+            -e grafana_image_name=${{ env.GRAFANA_IMAGE_NAME }} \
+            -e gf_security_admin_user=${{ env.GF_SECURITY_ADMIN_USER}} \
+            -e gf_security_admin_password=${{ env.GF_SECURITY_ADMIN_PASSWORD}} \
+            -e network=${{ env.NETWORK }} \
+            ansible/monitoring.yml
