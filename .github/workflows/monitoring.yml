@@ -4,7 +4,6 @@ env:
   NODE_EXPORTER_VERSION: 1.5.0
   PROMETHEUS_IMAGE_NAME: "tanyaharutyunyan/prometheus"
   PROMETHEUS_VERSION: 2.37.6
-  GRAFANA_IMAGE_NAME: "tanyaharutyunyan/grafana"
   IMAGE_TAG: ${{ github.run_number }}
   FORMAT: amd64
   GF_SECURITY_ADMIN_USER: username
@@ -32,7 +31,6 @@ jobs:
         run: |
           docker build -t ${{ env.NODE_EXPORTER_IMAGE_NAME }}:${{ env.IMAGE_TAG }} -f docker-images/node-exporter/Dockerfile --build-arg="FORMAT=${{ env.FORMAT }}" --build-arg="VERSION=${{ env.NODE_EXPORTER_VERSION }}" .
           docker build -t ${{ env.PROMETHEUS_IMAGE_NAME }}:${{ env.IMAGE_TAG }} -f docker-images/prometheus/Dockerfile --build-arg="FORMAT=${{ env.FORMAT }}" --build-arg="VERSION=${{ env.PROMETHEUS_VERSION }}" .
-          docker build --no-cache -t ${{ env.GRAFANA_IMAGE_NAME }}:${{ env.IMAGE_TAG }} -f docker-images/grafana/Dockerfile --build-arg="FORMAT=${{ env.FORMAT }}" .
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
@@ -44,7 +42,6 @@ jobs:
         run: |
           docker push ${{ env.NODE_EXPORTER_IMAGE_NAME }}:${{ env.IMAGE_TAG }}
           docker push ${{ env.PROMETHEUS_IMAGE_NAME }}:${{ env.IMAGE_TAG }}
-          docker push ${{ env.GRAFANA_IMAGE_NAME }}:${{ env.IMAGE_TAG }}
 
   deploy:
 
@@ -80,7 +77,6 @@ jobs:
             -e node_exporter_image_name=${{ env.NODE_EXPORTER_IMAGE_NAME }} \
             -e prometheus_image_name=${{ env.PROMETHEUS_IMAGE_NAME }} \
             -e image_tag=${{ env.IMAGE_TAG }} \
-            -e grafana_image_name=${{ env.GRAFANA_IMAGE_NAME }} \
             -e gf_security_admin_user=${{ env.GF_SECURITY_ADMIN_USER}} \
             -e gf_security_admin_password=${{ env.GF_SECURITY_ADMIN_PASSWORD}} \
             -e network=${{ env.NETWORK }} \
